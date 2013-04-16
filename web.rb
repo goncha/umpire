@@ -1,12 +1,42 @@
 require "sinatra/base"
 require "rack-ssl-enforcer"
 
+require "yajl/json_gem"
+require "restclient"
+
+require 'uri'
+
 
 module Umpire
+  ### Exception classes
+  class MetricNotFound < Exception ; end
+  class MetricServiceRequestFailed < Exception ; end
+  class MetricNotComposite < RuntimeError ; end
+
+  ### Graphite helper to fetch metric values
+  module Graphite
+    extend self
+
+    def get_values_for_range(graphite_url, metric, range)
+      begin
+        json = RestClient.get(url(graphite_url, metric, range))
+        data = JSON.parse(json)
+        data.empty? ? raise(MetricNotFound) : data.first["datapoints"].map { |v, _| v }.compact
+      rescue RestClient::RequestFailed
+        raise MetricServiceRequestFailed
+      end
+    end
+
+    def url(graphite_url, metric, range)
+      URI.encode(URI.decode("#{graphite_url}/render/?target=#{metric}&format=json&from=-#{range}s"))
+    end
+  end
+
+  ## Sinatra Web
   class Web < Sinatra::Base
     enable :dump_errors
     disable :show_exceptions
-    use Rack::SslEnforcer unless ENV['FORCE_HTTPS']
+    use Rack::SslEnforcer if ENV['FORCE_HTTPS']
 
     before do
       content_type :json
