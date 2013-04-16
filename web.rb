@@ -1,7 +1,7 @@
 require "sinatra/base"
 require "rack-ssl-enforcer"
 
-require "yajl/json_gem"
+require "json"
 require "restclient"
 
 require 'uri'
@@ -59,7 +59,7 @@ module Umpire
 
       unless valid?(params)
         status 400
-        next JSON.dump({"error" => "missing parameters"}) + "\n"
+        next {"error" => "missing parameters"}.to_json
       end
 
       min = (params["min"] && params["min"].to_f)
@@ -70,7 +70,7 @@ module Umpire
         points = fetch_points(params)
         if points.empty?
           status empty_ok ? 200 : 404
-          JSON.dump({"error" => "no values for metric in range"}) + "\n"
+          {"error" => "no values for metric in range"}.to_json
         else
           value = (points.reduce { |a,b| a+b }) / points.size.to_f
           if ((min && (value < min)) || (max && (value > max)))
@@ -78,33 +78,33 @@ module Umpire
           else
             status 200
           end
-          JSON.dump({"value" => value}) + "\n"
+          {"value" => value}.to_json
         end
       rescue MetricNotComposite => e
         status 400
-        JSON.dump("error" => e.message) + "\n"
+        {"error" => e.message}.to_json
       rescue MetricNotFound
         status 404
-        JSON.dump({"error" => "metric not found"}) + "\n"
+        {"error" => "metric not found"}.to_json
       rescue MetricServiceRequestFailed
         status 503
-        JSON.dump({"error" => "connecting to backend metrics service failed with error 'request timed out'"}) + "\n"
+        {"error" => "connecting to backend metrics service failed with error 'request timed out'"}.to_json
       end
     end
 
     get "/health" do
       status 200
-      JSON.dump({"health" => "ok"}) + "\n"
+      {"health" => "ok"}.to_json
     end
 
     get "/*" do
       status 404
-      JSON.dump({"error" => "not found"}) + "\n"
+      {"error" => "not found"}.to_json
     end
 
     error do
       status 500
-      JSON.dump({"error" => "internal server error"}) + "\n"
+      {"error" => "internal server error"}.to_json
     end
 
   end
