@@ -1,63 +1,31 @@
 require "sinatra/base"
-#require "rack/handler/mongrel"
-#require "rack-ssl-enforcer"
-#require "instruments"
+require "rack-ssl-enforcer"
+
 
 module Umpire
   class Web < Sinatra::Base
     enable :dump_errors
     disable :show_exceptions
-#    use Rack::SslEnforcer if Config.force_https?
-#    register Sinatra::Instrumentation
-#    instrument_routes
+    use Rack::SslEnforcer unless ENV['FORCE_HTTPS']
 
     before do
       content_type :json
     end
 
     helpers do
-      # def protected!
-      #   unless authorized?
-      #     response["WWW-Authenticate"] = %(Basic realm="Restricted Area")
-      #     throw(:halt, [401, JSON.dump({"error" => "not authorized"}) + "\n"])
-      #   end
-      # end
-
-      # def authorized?
-      #   @auth ||=  Rack::Auth::Basic::Request.new(request.env)
-      #   if @auth.provided? && @auth.basic? && @auth.credentials
-      #     if scope = Config.find_scope_by_key(@auth.credentials[1])
-      #       log(scope: scope)
-      #       true
-      #     end
-      #   end
-      # end
-
       def valid?(params)
         params["metric"] && (params["min"] || params["max"]) && params["range"]
       end
 
       def fetch_points(params)
         metric = params["metric"]
-        # source = params["source"]
         range = (params["range"] && params["range"].to_i)
-        # librato = params["backend"] == "librato"
-        # from = (params["from"] || LibratoMetrics::DEFAULT_FROM).to_sym
-        # compose = params["compose"]
 
-        return Graphite.get_values_for_range(Config.graphite_url, metric, range) # unless librato
-
-        # if !compose && metric.split(",").size > 1
-        #   raise MetricNotComposite, "multiple metrics without a compose function"
-        # end
-
-        # return LibratoMetrics.compose_values_for_range(compose, metric.split(","), range, from, source) if compose
-        # LibratoMetrics.get_values_for_range(metric, range, from, source)
+        return Graphite.get_values_for_range(ENV['GRAPHITE_URL'], metric, range)
       end
     end
 
     get "/check" do
-#      protected!
 
       unless valid?(params)
         status 400
@@ -109,32 +77,5 @@ module Umpire
       JSON.dump({"error" => "internal server error"}) + "\n"
     end
 
-    # def self.start
-    #   log(fn: "start", at: "build")
-    #   @server = Mongrel::HttpServer.new("0.0.0.0", Config.port)
-    #   @server.register("/", Rack::Handler::Mongrel.new(Web.new))
-
-    #   log(fn: "start", at: "install_trap")
-    #   Signal.trap("TERM") do
-    #     log(fn: "trap")
-    #     @server.stop(true)
-    #     log(fn: "trap", at: "exit", status: 0)
-    #     Kernel.exit!(0)
-    #   end
-
-    #   log(fn: "start", at: run, port: Config.port)
-    #   @server.run.join
-    # end
-
-    # def log(data, &blk)
-    #   Web.log(data, &blk)
-    # end
-
-    # def self.log(data, &blk)
-    #   data.delete(:level)
-    #   Log.log(Log.merge({ns: "web"}, data), &blk)
-    # end
   end
 end
-
-# Instruments.defaults = {logger: Umpire::Web, method: :log}
